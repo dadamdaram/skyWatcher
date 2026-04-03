@@ -1,0 +1,648 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SKYWATCHER — 날씨 & 실시간 관광지 추천</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="bg-orbs">
+      <div class="orb orb1"></div>
+      <div class="orb orb2"></div>
+      <div class="orb orb3"></div>
+    </div>
+    <div class="noise"></div>
+
+    <header>
+      <div class="logo">SKY<span>WATCHER</span></div>
+      <nav class="header-nav">
+        <a href="#weather-result" class="nav-link">🌤 날씨</a>
+        <a href="#travel-section" class="nav-link">✈ 관광지</a>
+        <a href="#route-section" class="nav-link accent">🗺 경로</a>
+      </nav>
+      <div id="current-time" class="clock">--:--:--</div>
+    </header>
+
+    <section class="search-section">
+      <div class="search-eyebrow">
+        실시간 날씨 + 한국관광공사 공식 데이터 기반
+      </div>
+      <h1 class="search-headline">어디로 <span>떠날까요?</span></h1>
+
+      <!-- 모드 토글 -->
+      <div class="mode-toggle">
+        <button class="mode-btn active" id="mode-city" data-mode="city">
+          🌍 도시 검색
+        </button>
+        <button class="mode-btn" id="mode-location" data-mode="location">
+          📍 내 위치 기반
+        </button>
+        <button class="mode-btn" id="mode-keyword" data-mode="keyword">
+          🔍 키워드 검색
+        </button>
+      </div>
+
+      <!-- 도시 검색 -->
+      <div class="search-panel" id="panel-city">
+        <div class="search-wrap">
+          <input
+            type="text"
+            id="city-input"
+            placeholder="도시명을 입력하세요 (예: 강릉, 전주, 경주...)"
+            autocomplete="off"
+          />
+          <button id="search-btn">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            검색
+          </button>
+        </div>
+        <div class="quick-cities">
+          <button
+            class="qc-btn"
+            data-city="Seoul"
+            data-lat="37.5665"
+            data-lng="126.9780"
+          >
+            🏙 서울
+          </button>
+          <button
+            class="qc-btn"
+            data-city="Busan"
+            data-lat="35.1796"
+            data-lng="129.0756"
+          >
+            🌊 부산
+          </button>
+          <button
+            class="qc-btn"
+            data-city="Jeju"
+            data-lat="33.4890"
+            data-lng="126.4983"
+          >
+            🍊 제주
+          </button>
+          <button
+            class="qc-btn"
+            data-city="Gyeongju"
+            data-lat="35.8562"
+            data-lng="129.2247"
+          >
+            🏛 경주
+          </button>
+          <button
+            class="qc-btn"
+            data-city="Jeonju"
+            data-lat="35.8242"
+            data-lng="127.1480"
+          >
+            🥢 전주
+          </button>
+          <button
+            class="qc-btn"
+            data-city="Gangneung"
+            data-lat="37.7519"
+            data-lng="128.8761"
+          >
+            🏄 강릉
+          </button>
+          <button
+            class="qc-btn"
+            data-city="Incheon"
+            data-lat="37.4563"
+            data-lng="126.7052"
+          >
+            ✈️ 인천
+          </button>
+          <button
+            class="qc-btn"
+            data-city="Daegu"
+            data-lat="35.8714"
+            data-lng="128.6014"
+          >
+            🌹 대구
+          </button>
+          <button
+            class="qc-btn"
+            data-city="Daejeon"
+            data-lat="36.3504"
+            data-lng="127.3845"
+          >
+            🔬 대전
+          </button>
+          <button
+            class="qc-btn"
+            data-city="Gwangju"
+            data-lat="35.1595"
+            data-lng="126.8526"
+          >
+            🎨 광주
+          </button>
+          <button
+            class="qc-btn"
+            data-city="Suwon"
+            data-lat="37.2636"
+            data-lng="127.0286"
+          >
+            🏰 수원
+          </button>
+          <button
+            class="qc-btn"
+            data-city="Chuncheon"
+            data-lat="37.8747"
+            data-lng="127.7342"
+          >
+            🦆 춘천
+          </button>
+          <button
+            class="qc-btn"
+            data-city="Sokcho"
+            data-lat="38.2070"
+            data-lng="128.5918"
+          >
+            🏔 속초
+          </button>
+          <button
+            class="qc-btn"
+            data-city="Yeosu"
+            data-lat="34.7604"
+            data-lng="127.6622"
+          >
+            🌅 여수
+          </button>
+          <button
+            class="qc-btn"
+            data-city="Tongyeong"
+            data-lat="34.8544"
+            data-lng="128.4330"
+          >
+            ⛵ 통영
+          </button>
+          <button
+            class="qc-btn"
+            data-city="Andong"
+            data-lat="36.5684"
+            data-lng="128.7294"
+          >
+            🎭 안동
+          </button>
+          <button
+            class="qc-btn"
+            data-city="Pohang"
+            data-lat="36.0320"
+            data-lng="129.3650"
+          >
+            🦞 포항
+          </button>
+          <button
+            class="qc-btn"
+            data-city="Namhae"
+            data-lat="34.8379"
+            data-lng="127.8924"
+          >
+            🌿 남해
+          </button>
+          <button
+            class="qc-btn"
+            data-city="Boryeong"
+            data-lat="36.3408"
+            data-lng="126.6162"
+          >
+            🖐 보령
+          </button>
+          <button
+            class="qc-btn"
+            data-city="Gapyeong"
+            data-lat="37.8314"
+            data-lng="127.5101"
+          >
+            🌲 가평
+          </button>
+        </div>
+      </div>
+
+      <!-- 위치 기반 -->
+      <div class="search-panel hidden" id="panel-location">
+        <div class="location-box">
+          <div class="location-icon">📍</div>
+          <div class="location-text">
+            <div class="location-title">내 위치 기반 관광지 찾기</div>
+            <div class="location-sub">
+              GPS로 현재 위치를 감지해 주변 관광지를 실시간 조회합니다
+            </div>
+          </div>
+          <button id="gps-btn" class="gps-btn">
+            <span id="gps-btn-text">📡 위치 감지</span>
+          </button>
+        </div>
+        <div id="gps-status" class="gps-status hidden"></div>
+        <!-- 반경 선택 -->
+        <div class="radius-select" id="radius-row" style="display: none">
+          <span class="radius-label">검색 반경:</span>
+          <button class="radius-btn active" data-radius="1000">1km</button>
+          <button class="radius-btn" data-radius="3000">3km</button>
+          <button class="radius-btn" data-radius="5000">5km</button>
+          <button class="radius-btn" data-radius="10000">10km</button>
+        </div>
+      </div>
+
+      <!-- 키워드 검색 -->
+      <div class="search-panel hidden" id="panel-keyword">
+        <div class="kw-search-box">
+          <div class="kw-search-icon">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          </div>
+          <input
+            type="text"
+            id="keyword-input"
+            class="kw-search-input"
+            placeholder="가고 싶은 곳을 입력하세요"
+            autocomplete="off"
+          />
+          <button id="keyword-search-btn" class="kw-search-btn">검색</button>
+        </div>
+        <div class="kw-hint">예: 카페, 박물관, 한옥, 해수욕장, 온천…</div>
+        <div class="kw-section-label">인기 키워드</div>
+        <div class="keyword-tags">
+          <button class="kw-tag" data-kw="카페">☕ 카페</button>
+          <button class="kw-tag" data-kw="박물관">🏛 박물관</button>
+          <button class="kw-tag" data-kw="해수욕장">🏖 해수욕장</button>
+          <button class="kw-tag" data-kw="한옥">🏯 한옥</button>
+          <button class="kw-tag" data-kw="캠핑">⛺ 캠핑</button>
+          <button class="kw-tag" data-kw="야경">🌃 야경</button>
+          <button class="kw-tag" data-kw="온천">♨ 온천</button>
+          <button class="kw-tag" data-kw="트레킹">🥾 트레킹</button>
+        </div>
+      </div>
+    </section>
+
+    <div id="loading" class="loading hidden">
+      <div class="loading-ring"></div>
+      <p id="loading-text">날씨 & 관광지 정보 불러오는 중...</p>
+    </div>
+    <div id="error-msg" class="error-msg hidden"></div>
+
+    <div id="main-content" class="hidden">
+      <!-- 날씨 섹션 -->
+      <section id="weather-result">
+        <div class="section-eyebrow">현재 날씨</div>
+        <div class="hero-card">
+          <div class="hero-left">
+            <div class="city-name" id="city-display">—</div>
+            <div class="country-badge" id="country-display">—</div>
+            <div class="weather-desc" id="weather-desc">—</div>
+            <div class="temp-big"><span id="temp-main">—</span>°</div>
+            <div class="temp-sub">
+              <span class="temp-high">↑ <span id="temp-max">—</span>°</span>
+              <span class="temp-low">↓ <span id="temp-min">—</span>°</span>
+              <span class="feels">체감 <span id="feels-like">—</span>°</span>
+            </div>
+          </div>
+          <div class="hero-right">
+            <div class="weather-icon-bg">
+              <img id="weather-icon" src="" alt="날씨" />
+            </div>
+            <div class="weather-tip" id="weather-tip"></div>
+          </div>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon">💧</div>
+            <div class="stat-label">습도</div>
+            <div class="stat-value" id="humidity">—</div>
+            <div class="stat-unit">%</div>
+            <div class="stat-bar-wrap">
+              <div class="stat-bar blue" id="humidity-bar"></div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🌬️</div>
+            <div class="stat-label">풍속</div>
+            <div class="stat-value" id="wind-speed">—</div>
+            <div class="stat-unit">m/s</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">👁️</div>
+            <div class="stat-label">가시거리</div>
+            <div class="stat-value" id="visibility">—</div>
+            <div class="stat-unit">km</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🌡️</div>
+            <div class="stat-label">기압</div>
+            <div class="stat-value" id="pressure">—</div>
+            <div class="stat-unit">hPa</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">☁️</div>
+            <div class="stat-label">구름량</div>
+            <div class="stat-value" id="clouds">—</div>
+            <div class="stat-unit">%</div>
+            <div class="stat-bar-wrap">
+              <div class="stat-bar grey" id="clouds-bar"></div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🌅</div>
+            <div class="stat-label">일출 / 일몰</div>
+            <div class="stat-value sun-times">
+              <span id="sunrise">—</span> / <span id="sunset">—</span>
+            </div>
+          </div>
+        </div>
+        <div class="forecast-box">
+          <div class="box-title">5일 예보</div>
+          <div class="forecast-list" id="forecast-list"></div>
+        </div>
+      </section>
+
+      <!-- 관광지 섹션 -->
+      <section id="travel-section">
+        <div class="travel-header">
+          <div class="section-eyebrow" id="travel-source-badge">
+            관광지 추천
+          </div>
+          <h2 class="travel-headline">
+            <span id="travel-city-name">이 지역</span>의<br />추천 관광지
+          </h2>
+          <div class="travel-meta">
+            <div class="weather-badge" id="travel-weather-badge"></div>
+            <p class="travel-subtitle" id="travel-subtitle"></p>
+          </div>
+        </div>
+
+        <!-- API 상태 알림 -->
+        <div class="api-notice" id="api-notice" style="display: none">
+          <span class="api-notice-icon">🇰🇷</span>
+          <span id="api-notice-text"
+            >한국관광공사 API에서 실시간 데이터를 불러왔습니다</span
+          >
+          <span class="api-badge-count" id="api-result-count"></span>
+        </div>
+
+        <div class="filter-tabs" id="filter-tabs">
+          <button class="tab-btn active" data-filter="all">전체</button>
+          <button class="tab-btn" data-filter="12">관광지</button>
+          <button class="tab-btn" data-filter="14">문화시설</button>
+          <button class="tab-btn" data-filter="15">축제/행사</button>
+          <button class="tab-btn" data-filter="28">레포츠</button>
+          <button class="tab-btn" data-filter="32">숙박</button>
+          <button class="tab-btn" data-filter="38">쇼핑</button>
+          <button class="tab-btn" data-filter="39">음식점</button>
+        </div>
+
+        <div class="sort-row">
+          <span class="sort-label">정렬:</span>
+          <button class="sort-btn active" data-sort="distance">
+            📍 거리순
+          </button>
+          <button class="sort-btn" data-sort="weather">☀️ 날씨 추천순</button>
+          <button class="sort-btn" data-sort="modified">🆕 최신순</button>
+          <button class="btn-select-mode" id="select-mode-btn">
+            ☑ 다중 선택
+          </button>
+        </div>
+
+        <div class="places-grid" id="places-grid"></div>
+
+        <!-- 더보기 버튼 -->
+        <div class="load-more-wrap" id="load-more-wrap" style="display: none">
+          <button class="btn-load-more" id="load-more-btn">
+            더 많은 관광지 보기 ↓
+          </button>
+        </div>
+
+        <div class="route-hint" id="route-hint">
+          <span class="route-hint-icon">🗺️</span>
+          <span
+            >관심 명소를 <strong>경로에 추가</strong>하고 최적 동선을
+            만들어보세요!</span
+          >
+          <button
+            class="btn-outline"
+            onclick="
+              document
+                .getElementById('route-section')
+                .scrollIntoView({ behavior: 'smooth' })
+            "
+          >
+            경로 플래너로 이동 →
+          </button>
+        </div>
+      </section>
+
+      <!-- 경로 플래너 섹션 -->
+      <section id="route-section">
+        <div class="section-eyebrow">경로 플래너</div>
+        <h2
+          class="travel-headline"
+          style="font-size: 2.4rem; margin-bottom: 8px"
+        >
+          나만의 <span style="color: var(--accent)">여행 경로</span> 만들기
+        </h2>
+        <p class="travel-subtitle" style="margin-bottom: 32px">
+          날씨에 맞게 최적화된 동선을 자동으로 추천하거나, 원하는 명소를 골라
+          경로를 구성하세요.
+        </p>
+
+        <div class="route-layout">
+          <div class="route-builder">
+            <div class="auto-route-panel">
+              <div class="panel-title">🤖 자동 경로 추천</div>
+              <div class="auto-route-desc">
+                날씨와 이동 효율을 고려한 최적 경로를 자동 생성합니다.
+              </div>
+              <div class="auto-route-btns">
+                <button class="auto-btn" data-type="weather">
+                  <span class="auto-btn-icon" id="weather-auto-icon">☀️</span>
+                  <span class="auto-btn-label">날씨 최적화 코스</span>
+                  <span class="auto-btn-sub"
+                    >현재 날씨에 가장 잘 맞는 명소 중심</span
+                  >
+                </button>
+                <button class="auto-btn" data-type="culture">
+                  <span class="auto-btn-icon">🏛️</span>
+                  <span class="auto-btn-label">역사·문화 코스</span>
+                  <span class="auto-btn-sub">박물관·사원·역사지구 중심</span>
+                </button>
+                <button class="auto-btn" data-type="food">
+                  <span class="auto-btn-icon">🍜</span>
+                  <span class="auto-btn-label">미식 탐방 코스</span>
+                  <span class="auto-btn-sub">시장·맛집거리·음식점 중심</span>
+                </button>
+                <button class="auto-btn" data-type="efficient">
+                  <span class="auto-btn-icon">⚡</span>
+                  <span class="auto-btn-label">효율 동선 코스</span>
+                  <span class="auto-btn-sub">거리 기반 이동 최소화 경로</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="route-stops-panel">
+              <div class="panel-title-row">
+                <div class="panel-title">
+                  📍 내 경로 <span class="stop-count" id="stop-count">0개</span>
+                </div>
+                <div class="panel-actions">
+                  <div class="travel-mode-toggle">
+                    <button class="travel-mode-btn active" data-mode="driving">
+                      🚗 차량
+                    </button>
+                    <button class="travel-mode-btn" data-mode="walking">
+                      🚶 도보
+                    </button>
+                  </div>
+                  <button
+                    class="btn-sm btn-danger"
+                    id="clear-route-btn"
+                    style="display: none"
+                  >
+                    초기화
+                  </button>
+                  <button
+                    class="btn-sm btn-accent"
+                    id="share-route-btn"
+                    style="display: none"
+                  >
+                    📋 경로 복사
+                  </button>
+                </div>
+              </div>
+              <div id="route-stops-list" class="route-stops-list">
+                <div class="route-empty" id="route-empty">
+                  <div class="route-empty-icon">🗺️</div>
+                  <div>아직 추가된 명소가 없어요</div>
+                  <div
+                    style="
+                      font-size: 0.8rem;
+                      color: var(--text-muted);
+                      margin-top: 6px;
+                    "
+                  >
+                    위에서 자동 추천을 사용하거나<br />명소 카드에서 "경로 추가"
+                    버튼을 클릭하세요
+                  </div>
+                </div>
+              </div>
+              <div
+                class="route-summary"
+                id="route-summary"
+                style="display: none"
+              >
+                <div class="summary-item">
+                  <span class="summary-label">총 명소</span>
+                  <span class="summary-value" id="summary-count">0곳</span>
+                </div>
+                <div class="summary-item mode-drive">
+                  <span class="summary-label">🚗 차량 소요</span>
+                  <span class="summary-value" id="summary-time-drive">—</span>
+                </div>
+                <div class="summary-item mode-walk">
+                  <span class="summary-label">🚶 도보 소요</span>
+                  <span class="summary-value" id="summary-time-walk">—</span>
+                </div>
+                <div class="summary-item">
+                  <span class="summary-label">추천 출발</span>
+                  <span class="summary-value">09:00</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="route-map-panel">
+            <div class="map-toolbar">
+              <div class="panel-title">🗺 지도 & 경로</div>
+            </div>
+            <div id="route-map-container">
+              <div
+                id="route-map-leaflet"
+                style="
+                  height: 420px;
+                  border-radius: 12px;
+                  z-index: 0;
+                  overflow: hidden;
+                "
+              ></div>
+            </div>
+            <div class="map-pins-bar" id="route-map-pins"></div>
+            <div class="route-legend" id="route-legend" style="display: none">
+              <div class="legend-title">경로 순서</div>
+              <div class="legend-items" id="legend-items"></div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="route-timeline-section"
+          id="route-timeline-section"
+          style="display: none"
+        >
+          <div class="panel-title" style="margin-bottom: 20px">
+            ⏱ 예상 일정 타임라인
+          </div>
+          <div class="route-timeline" id="route-timeline"></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- 플로팅 선택 바 -->
+    <div class="selection-bar hidden" id="selection-bar">
+      <div class="selection-bar-inner">
+        <div class="selection-info">
+          <span class="selection-icon">✅</span>
+          <span id="selection-count-text">0개 선택됨</span>
+        </div>
+        <div class="selection-actions">
+          <button class="btn-sel-cancel" id="sel-cancel-btn">취소</button>
+          <button class="btn-sel-add" id="sel-add-btn">경로에 추가 →</button>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <span
+        >Powered by
+        <a href="https://openweathermap.org" target="_blank">OpenWeatherMap</a>
+        +
+        <a href="https://www.data.go.kr" target="_blank"
+          >한국관광공사 TourAPI</a
+        >
+        + OpenStreetMap</span
+      >
+      <span>SKYWATCHER— 실시간 관광지 추천 플래너</span>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>
