@@ -43,7 +43,13 @@ SkyWatcher는 사용자의 위치 또는 목적지의 실시간 기상 상태를
 
 ## ⚙️ 세팅 및 실행
 
-### 환경 변수 (`.env`)
+> ⚠️ **로컬 실행은 지원하지 않습니다.**
+> `app.js`의 `PROXY_BASE`가 배포된 Render 서버 주소로 고정되어 있으며, 해당 서버는 등록된 도메인에서만 요청을 허용합니다. `localhost`는 허용 도메인에서 제외되어 있어 API 호출이 차단됩니다.
+> 실제 동작은 배포 URL([sky-watcher-kappa.vercel.app](https://sky-watcher-kappa.vercel.app))에서 확인하세요.
+
+<br>
+
+### 환경 변수 (`.env`) — Render 백엔드 서버용
 
 ```bash
 ORS_KEY=          # OpenRouteService API Key
@@ -69,15 +75,96 @@ window.FIREBASE_CONFIG = {
 };
 ```
 
-### 로컬 실행
+<br>
 
-```bash
-npm install
-node node.js        # 백엔드 프록시 서버 :4000 실행
+---
 
-# app.js 상단 PROXY_BASE 로컬로 변경
-# const PROXY_BASE = "http://localhost:4000";
+## ☁️ 배포 구성
+
+### 프론트엔드 — Vercel
+
+`index.html`, `app.js`, `style.css`, `firebase.js` 등 정적 파일을 Vercel에 배포합니다.
+빌드 도구 없이 정적 파일 그대로 서빙되며, `firebase.config.js`는 `.gitignore`로 Git에서 제외합니다.
+
+### 백엔드 — Render
+
+`node.js` Express 서버를 Render에 배포합니다.
+
+**배포 설정:**
+
+| 항목          | 값                                           |
+| ------------- | -------------------------------------------- |
+| Build Command | `npm install`                                |
+| Start Command | `npm start` (`node node.js`)                 |
+| 환경 변수     | `ORS_KEY`, `WEATHER_KEY`, `TOUR_KEY`, `PORT` |
+
+**백엔드 역할:**
+
+- 외부 API Key를 서버 환경변수에만 보관하여 브라우저에 노출되지 않도록 중계
+- CORS 헤더(`Access-Control-Allow-Origin: *`) 설정으로 Vercel 프론트에서의 크로스 도메인 요청 허용
+- `Cross-Origin-Opener-Policy: same-origin-allow-popups` 헤더로 Firebase Google 로그인 팝업 정상 동작 보장
+
+**엔드포인트 목록:**
+
+| 엔드포인트              | 메서드 | 연결 API         | 설명                              |
+| ----------------------- | ------ | ---------------- | --------------------------------- |
+| `/route`                | POST   | OpenRouteService | 차량/도보 경로 및 이동시간 계산   |
+| `/api/weather/coords`   | GET    | OpenWeatherMap   | 좌표 기반 현재 날씨               |
+| `/api/weather/city`     | GET    | OpenWeatherMap   | 도시명 기반 현재 날씨             |
+| `/api/weather/forecast` | GET    | OpenWeatherMap   | 5일 예보                          |
+| `/api/tour/location`    | GET    | TourAPI          | 위치 기반 관광지 조회             |
+| `/api/tour/keyword`     | GET    | TourAPI          | 키워드 검색                       |
+| `/api/tour/festival`    | GET    | TourAPI          | 현재 진행 중인 축제 조회          |
+| `/api/tour/detail`      | GET    | TourAPI          | 장소 상세 개요                    |
+| `/api/tour/intro`       | GET    | TourAPI          | 운영시간/휴무일                   |
+| `/ping`                 | GET    | —                | 서버 상태 확인 및 Cold Start 웜업 |
+
+> **Render 무료 플랜 Cold Start:** 15분 비활성 시 인스턴스가 슬립 상태로 전환됩니다. 앱 초기화 시 `/ping`으로 미리 웜업 요청을 보내 첫 검색 지연을 최소화합니다.
+
+### Firebase 설정
+
+**Authentication:**
+
+1. Firebase Console → Authentication → 로그인 방법 → Google 사용 설정
+2. Authorized Domains에 아래 도메인 추가
+
+| 도메인                                 | 용도                           |
+| -------------------------------------- | ------------------------------ |
+| `https://sky-watcher-kappa.vercel.app` | 운영 프론트                    |
+| `https://skywatcher-akqa.onrender.com` | 백엔드 프록시                  |
+| `https://skywa-1c045.firebaseapp.com`  | Firebase Auth 내부 통신 (필수) |
+
+**Firestore 보안 규칙:**
+
 ```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /routes/{routeId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth.uid == resource.data.uid;
+    }
+  }
+}
+```
+
+### Google Cloud Console — API Key 보안
+
+Firebase API Key에 HTTP Referrer 제한을 설정해 허가된 도메인에서만 호출 가능하도록 2중 보호합니다.
+
+```
+Google Cloud Console → API 및 서비스 → 사용자 인증 정보
+→ Firebase API Key → 애플리케이션 제한 → HTTP 리퍼러
+```
+
+허용 Referrer:
+
+| 도메인                                   | 용도                           |
+| ---------------------------------------- | ------------------------------ |
+| `https://sky-watcher-kappa.vercel.app/*` | 운영 프론트                    |
+| `https://skywatcher-akqa.onrender.com/*` | 백엔드 프록시                  |
+| `https://skywa-1c045.firebaseapp.com/*`  | Firebase Auth 내부 통신 (필수) |
 
 <br>
 
@@ -97,10 +184,11 @@ node node.js        # 백엔드 프록시 서버 :4000 실행
 
 | 기상 타입 | 우선 추천 카테고리 |
 | --------- | ------------------ |
-| sunny     | 레포츠 → 관광지    |
-| rainy     | 문화시설 → 숙박    |
-| storm     | 숙박 → 쇼핑        |
-| cold      | 음식점 → 문화시설  |
+| sunny     | 관광지 → 레포츠    |
+| rainy     | 문화시설 → 음식점  |
+| storm     | 문화시설 → 숙박    |
+| cold      | 문화시설 → 음식점  |
+| cloudy    | 관광지 → 문화시설  |
 
 ### 3. 경로 최적화 및 타임라인
 
@@ -128,11 +216,11 @@ node node.js        # 백엔드 프록시 서버 :4000 실행
 
 ```js
 const WEATHER_CT_PREF = {
-  sunny: ["28", "12"], // 레포츠, 관광지
-  rainy: ["14", "32"], // 문화시설, 숙박
-  storm: ["32", "38"], // 숙박, 쇼핑
-  cold: ["39", "14"], // 음식점, 문화시설
-  cloudy: ["12", "14"],
+  sunny: ["12", "28"], // 관광지, 레포츠
+  rainy: ["14", "39"], // 문화시설, 음식점
+  storm: ["14", "32"], // 문화시설, 숙박
+  cold: ["14", "39"], // 문화시설, 음식점
+  cloudy: ["12", "14"], // 관광지, 문화시설
 };
 
 function getWeatherScore(p, wt) {
@@ -188,7 +276,6 @@ function optimizeRoute(places) {
 
 ```js
 async function fetchBothTravelTimes(stops) {
-  // ORS API를 차량/도보 동시 호출
   const [driving, walking] = await Promise.all([
     fetchOsrm(stops, "driving"),
     fetchOsrm(stops, "walking"),
@@ -272,7 +359,7 @@ const app = initializeApp(firebaseConfig);
 
 **원인** — `showLoading()` 함수가 `$("#main-content").addClass("hidden")`을 호출하는데, 기존 `#loading` div가 HTML에 존재하지 않아 로딩 인디케이터는 안 뜨고 컨텐츠만 사라지는 구조였습니다.
 
-**해결** — `showLoading()`에서 `#main-content`를 숨기는 로직을 완전히 제거하고, 기존 `#grid-loading-overlay` 중앙 스피너만 표시하도록 변경했습니다.
+**해결** — `showLoading()`에서 `#main-content`를 숨기는 로직을 완전히 제거하고, `#grid-loading-overlay` 중앙 스피너만 표시하도록 변경했습니다.
 
 ```js
 // Before
@@ -310,13 +397,12 @@ qs += `&eventStartDate=${since}&numOfRows=60`;
 
 **원인** — `$(document).ready()` 시점에 `showWeatherUnavailable()`을 즉시 호출해 빈 UI를 보여주고 백그라운드 fetch를 시작했는데, Render 서버 Cold Start(최대 30초) 동안 사용자에게 깨진 화면이 그대로 노출됐습니다.
 
-**해결** — 초기 로딩 시점에 `showLoading()` 스피너를 먼저 표시하고 데이터 fetch 완료 후 `hideLoading()`으로 전환했습니다.
+**해결** — 초기 로딩 시점에 `showLoading()` 스피너를 먼저 표시하고 데이터 완료 후 `hideLoading()`으로 전환했습니다.
 
 ```js
 // Before
 showWeatherUnavailable(); // 깨진 UI 즉시 노출
 showSkeletonGrid(6);
-// ... async fetch
 
 // After
 showLoading("🌤 서울 날씨 & 관광지 불러오는 중...");
@@ -324,8 +410,7 @@ showSkeletonGrid(6);
 (async () => {
   try {
     const [wData, places] = await Promise.all([...]);
-    // 렌더링
-    hideLoading(); // 완료 후 스피너 제거
+    hideLoading();
   } catch (e) {
     hideLoading();
     showWeatherUnavailable(); // 실패 시에만 빈 UI
@@ -349,9 +434,8 @@ const _introCache = new Map();
 async function fetchPlaceIntro(contentId, contentTypeId) {
   const key = String(contentId);
   if (_introCache.has(key)) return _introCache.get(key); // 캐시 히트
-
   const info = await fetchFromAPI(contentId, contentTypeId);
-  _introCache.set(key, info); // 저장
+  _introCache.set(key, info);
   return info;
 }
 ```
@@ -365,18 +449,32 @@ Browser → Express Proxy (Render) → OpenWeatherMap / TourAPI / ORS
                                   ↑ API Key는 서버 환경변수에만 존재
 ```
 
-허용 Referrer 목록:
+### 3. fetch → jQuery Ajax로 통일
 
-| 도메인                                   | 용도                           |
-| ---------------------------------------- | ------------------------------ |
-| `https://sky-watcher-kappa.vercel.app/*` | 운영 프론트                    |
-| `https://skywatcher-akqa.onrender.com/*` | 백엔드 프록시                  |
-| `https://skywa-1c045.firebaseapp.com/*`  | Firebase Auth 내부 통신 (필수) |
-| `http://localhost:*`                     | 로컬 개발                      |
+DOM 조작에 jQuery를 사용하는 만큼, API 호출도 `fetch()` 대신 `$.ajax()`로 통일해 코드 일관성을 높였습니다.
 
-### 3. Firebase Config 키 분리
+```js
+// Before
+const res = await fetch(`${PROXY_BASE}/route`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ coordinates, profile }),
+});
+const data = await res.json();
 
-`firebase.config.js`를 `.gitignore`에 추가해 실제 키가 Git 히스토리에 남지 않도록 구조화하고, `firebase.config.example.js`를 템플릿으로 제공해 팀 협업 시에도 설정이 명확합니다.
+// After
+const data = await $.ajax({
+  url: `${PROXY_BASE}/route`,
+  method: "POST",
+  contentType: "application/json",
+  data: JSON.stringify({ coordinates, profile }),
+  dataType: "json",
+});
+```
+
+### 4. Firebase Config 키 분리
+
+`firebase.config.js`를 `.gitignore`에 추가해 실제 키가 Git 히스토리에 남지 않도록 구조화하고, `firebase.config.example.js`를 템플릿으로 제공합니다.
 
 <br>
 
@@ -386,17 +484,17 @@ Browser → Express Proxy (Render) → OpenWeatherMap / TourAPI / ORS
 
 ### `FB_API_KEY_PLACEHOLDER` 400 Error
 
-**증상** — 배포 후 Firebase 인증 요청 시 `400 Bad Request`, 응답에 `FB_API_KEY_PLACEHOLDER` 문자열이 포함됨.
+**증상** — 배포 후 Firebase 인증 요청 시 `400 Bad Request`, 응답에 `FB_API_KEY_PLACEHOLDER` 문자열 포함.
 
-**원인** — Render 빌드 캐시에 이전 빌드 아티팩트가 남아있어 환경 변수 치환이 되지 않은 상태로 서비스됨.
+**원인** — Render 빌드 캐시에 이전 아티팩트가 남아 환경 변수 치환이 안 된 상태로 서비스됨.
 
 **해결 순서**:
 
 1. Render 대시보드 → `Clear build cache & deploy` 실행
-2. Mac 브라우저 `Cmd + Shift + R` 강제 새로고침으로 캐시 제거
+2. 브라우저 강제 새로고침(`Cmd+Shift+R` / `Ctrl+Shift+R`)으로 캐시 제거
 3. Firebase Console → Authentication → Authorized Domains에 Vercel 도메인 등록 확인
 
-> **핵심 교훈** — 에러 메시지에 `PLACEHOLDER`가 보이면 서버에 구 버전 코드가 살아있다는 물리적 증거입니다. 코드보다 배포 상태를 먼저 의심하세요.
+> **핵심 교훈** — 에러 메시지에 `PLACEHOLDER`가 보이면 서버에 구 버전 코드가 살아있다는 증거입니다. 코드보다 배포 상태를 먼저 의심하세요.
 
 ---
 
@@ -409,10 +507,10 @@ Browser → Express Proxy (Render) → OpenWeatherMap / TourAPI / ORS
 **해결** — 앱 초기화 시 `/ping` 엔드포인트로 미리 웜업 요청을 보내 슬립 상태를 깨웁니다.
 
 ```js
-// app.js — 초기화 시 병렬로 웜업
-fetch(`${PROXY_BASE}/ping`)
-  .then((r) => (r.ok ? r.json() : null))
-  .catch(() => {});
+// app.js — 초기화 시 웜업 ($.ajax로 통일)
+$.ajax({ url: `${PROXY_BASE}/ping`, method: "GET", dataType: "json" }).catch(
+  () => {},
+);
 ```
 
 ```js
@@ -434,3 +532,13 @@ app.get("/ping", (_, res) => res.json({ ok: true }));
 const toHttps = (url) => (url ? url.replace(/^http:\/\//, "https://") : null);
 const imgSrc = toHttps(p.firstimage) || toHttps(p.firstimage2) || fallbackImg;
 ```
+
+---
+
+### COOP 경고 (Cross-Origin-Opener-Policy)
+
+**증상** — 콘솔에 `Cross-Origin-Opener-Policy policy would block the window.closed call` 반복 출력.
+
+**원인** — Chrome이 COOP 정책으로 Firebase 팝업 창의 `window.closed` 감시를 차단하면서 출력되는 경고. Firebase SDK 내부(`popup.ts`) 코드에서 발생하므로 직접 수정 불가.
+
+**결론** — 로그인은 정상 동작하며 기능 영향 없음. `node.js`에 `Cross-Origin-Opener-Policy: same-origin-allow-popups` 헤더가 설정되어 있어 팝업 동작은 보장됩니다. 일반 사용자는 콘솔을 열지 않으므로 실질적 문제 없음.
