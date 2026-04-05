@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="ko" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="날씨 기반 실시간 관광지 추천 플래너 — 한국관광공사 TourAPI + OpenWeatherMap"
+    />
+    <meta name="theme-color" content="#060810" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌤</text></svg>"
+    />
+    <title>SKYWATCHER — 날씨 & 실시간 관광지 추천</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&family=Noto+Sans+KR:wght@300;400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="style.css" />
+    <!-- Firebase Config (키 분리, .gitignore 처리 -> X) -->
+    <script>
+      // 💡 Render의 'Secret File' 대신, 여기서 환경 변수를 읽거나
+      // 배포 시점에만 값을 채워 넣는 방식을 쓸 수 있습니다.
+      //# index.html 안에 있는 가짜 텍스트를 실제 환경 변수로 바꿔치기하는 명령어입니다.
+      // (과거) Render에 Build Command : yarn install && sed -i "s/RENDER_API_KEY/$FB_KEY/g" index.html && sed -i "s/RENDER_AUTH_DOMAIN/$FB_DOMAIN/g" index.html
+      // -> (현재) hard coding 후 제약 (cloud, firebase)
+
+      window.FIREBASE_CONFIG = {
+        apiKey: "AIzaSyDNIMdqzhAN6r9x8CseX4ZCBfJHcm_d7ms",
+        authDomain: "skywa-1c045.firebaseapp.com",
+        projectId: "skywa-1c045",
+        storageBucket: "skywa-1c045.firebasestorage.app",
+        messagingSenderId: "483549870415",
+        appId: "1:483549870415:web:1730b602d6f3f9ebc1ad3a",
+        measurementId: "G-3TX1V0CEL7",
+      };
+    </script>
+
+    <!-- Firebase SDK -->
+    <script type="module" src="firebase.js"></script>
+  </head>
+  <body>
+    <div class="bg-mesh"></div>
+    <div class="noise"></div>
+
+    <header>
+      <div class="logo">SKY<span>WATCHER</span></div>
+      <nav class="header-nav">
+        <a href="#weather-result" class="nav-link">날씨</a>
+        <a href="#travel-section" class="nav-link">관광지</a>
+        <a href="#route-section" class="nav-link accent">경로 플래너</a>
+      </nav>
+      <div class="header-right">
+        <div id="current-time" class="clock">--:--:--</div>
+        <!-- 로그인 영역 -->
+        <div class="auth-area" id="auth-area">
+          <button class="auth-btn" id="login-btn" title="Google로 로그인">
+            <svg width="14" height="14" viewBox="0 0 24 24">
+              <path
+                fill="currentColor"
+                d="M21.8 10.2H12v3.8h5.7c-.5 2.5-2.7 4-5.7 4a6 6 0 010-12c1.5 0 2.9.6 4 1.5l2.8-2.8A10 10 0 002 12a10 10 0 0010 10c5.5 0 10-4 10-10 0-.6-.1-1.2-.2-1.8z"
+              />
+            </svg>
+            로그인
+          </button>
+          <div class="user-info hidden" id="user-info">
+            <img class="user-avatar" id="user-avatar" src="" alt="" />
+            <span class="user-name" id="user-name"></span>
+            <button class="auth-btn-sm" id="my-routes-btn">내 경로</button>
+            <button class="auth-btn-sm ghost" id="logout-btn">로그아웃</button>
+          </div>
+        </div>
+        <button id="theme-toggle" class="theme-btn" title="테마 전환">
+          <span id="theme-icon">☀️</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- ── 검색 섹션 ── -->
+    <section class="search-section">
+      <div class="search-eyebrow">실시간 날씨 + 한국관광공사 공식 데이터</div>
+      <h1 class="search-headline">어디로 <span>떠날까요?</span></h1>
+
+      <div class="mode-toggle">
+        <button class="mode-btn active" data-mode="city">도시 검색</button>
+        <button class="mode-btn" data-mode="location">내 위치</button>
+        <button class="mode-btn" data-mode="keyword">키워드</button>
+      </div>
+
+      <!-- 도시 검색 -->
+      <div class="search-panel" id="panel-city">
+        <div class="search-wrap">
+          <input
+            type="text"
+            id="city-input"
+            placeholder="도시명 직접 입력..."
+            autocomplete="off"
+          />
+          <button id="search-btn">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            검색
+          </button>
+        </div>
+
+        <!-- 지역 > 도시 2단 선택 -->
+        <div class="region-picker">
+          <div class="region-tabs" id="region-tabs">
+            <button class="rtab active" data-region="수도권">수도권</button>
+            <button class="rtab" data-region="강원">강원</button>
+            <button class="rtab" data-region="충청">충청</button>
+            <button class="rtab" data-region="전라">전라</button>
+            <button class="rtab" data-region="경상">경상</button>
+            <button class="rtab" data-region="제주">제주</button>
+          </div>
+          <div class="region-cities" id="region-cities">
+            <!-- JS로 채움 -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 위치 기반 -->
+      <div class="search-panel hidden" id="panel-location">
+        <div class="location-box">
+          <div class="location-icon">📍</div>
+          <div class="location-text">
+            <div class="location-title">내 위치 기반 관광지</div>
+            <div class="location-sub">
+              GPS로 현재 위치를 감지해 주변 관광지를 실시간 조회합니다
+            </div>
+          </div>
+          <button id="gps-btn" class="gps-btn">
+            <span id="gps-btn-text">위치 감지</span>
+          </button>
+        </div>
+        <div id="gps-status" class="gps-status hidden"></div>
+        <div class="radius-select" id="radius-row" style="display: none">
+          <span class="radius-label">검색 반경</span>
+          <button class="radius-btn active" data-radius="1000">1km</button>
+          <button class="radius-btn" data-radius="3000">3km</button>
+          <button class="radius-btn" data-radius="5000">5km</button>
+          <button class="radius-btn" data-radius="10000">10km</button>
+        </div>
+      </div>
+
+      <!-- 키워드 -->
+      <div class="search-panel hidden" id="panel-keyword">
+        <div class="kw-search-box">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            class="kw-icon"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            type="text"
+            id="keyword-input"
+            class="kw-search-input"
+            placeholder="가고 싶은 곳을 입력하세요"
+            autocomplete="off"
+          />
+          <button id="keyword-search-btn" class="kw-search-btn">검색</button>
+        </div>
+        <div class="keyword-tags">
+          <button class="kw-tag" data-kw="카페">☕ 카페</button>
+          <button class="kw-tag" data-kw="박물관">🏛 박물관</button>
+          <button class="kw-tag" data-kw="해수욕장">🏖 해수욕장</button>
+          <button class="kw-tag" data-kw="한옥">🏯 한옥</button>
+          <button class="kw-tag" data-kw="캠핑">⛺ 캠핑</button>
+          <button class="kw-tag" data-kw="야경">🌃 야경</button>
+          <button class="kw-tag" data-kw="온천">♨ 온천</button>
+          <button class="kw-tag" data-kw="트레킹">🥾 트레킹</button>
+        </div>
+      </div>
+    </section>
+
+    <div id="error-msg" class="error-msg hidden"></div>
+
+    <div id="main-content">
+      <!-- ── 날씨 섹션 ── -->
+      <section id="weather-result">
+        <!-- Hero 카드 -->
+        <div class="weather-hero">
+          <div class="w-hero-left">
+            <div class="w-city-row">
+              <span class="w-city" id="city-display">—</span>
+              <span class="w-country" id="country-display"></span>
+            </div>
+            <div class="w-desc" id="weather-desc">—</div>
+            <div class="w-temp-row">
+              <span class="w-temp" id="temp-main">—</span
+              ><span class="w-deg">°</span>
+              <div class="w-range">
+                <span class="w-hi">↑<span id="temp-max">—</span>°</span>
+                <span class="w-lo">↓<span id="temp-min">—</span>°</span>
+                <span class="w-feel">체감 <span id="feels-like">—</span>°</span>
+              </div>
+            </div>
+          </div>
+          <div class="w-hero-right">
+            <img id="weather-icon" src="" alt="날씨" class="w-icon" />
+            <div class="w-tip" id="weather-tip"></div>
+          </div>
+        </div>
+
+        <!-- 일출/일몰 + 습도 심플 바 -->
+        <div class="w-info-row">
+          <div class="w-info-card">
+            <span class="w-info-label">일출</span>
+            <span class="w-info-val" id="sunrise">—</span>
+          </div>
+          <div class="w-info-divider"></div>
+          <div class="w-info-card">
+            <span class="w-info-label">일몰</span>
+            <span class="w-info-val" id="sunset">—</span>
+          </div>
+          <div class="w-info-divider"></div>
+          <div class="w-info-card w-humidity-card">
+            <span class="w-info-label">습도</span>
+            <div class="w-humidity-row">
+              <span class="w-info-val" id="humidity">—</span
+              ><span class="w-info-unit">%</span>
+              <div class="w-hum-bar-wrap">
+                <div class="w-hum-bar" id="humidity-bar"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 숨겨진 더미 (app.js 호환) -->
+        <div style="display: none">
+          <span id="wind-speed"></span><span id="visibility"></span>
+          <span id="pressure"></span><span id="clouds"></span>
+          <div id="clouds-bar"></div>
+        </div>
+
+        <!-- 5일 예보 -->
+        <div class="forecast-strip" id="forecast-list"></div>
+      </section>
+
+      <!-- ── 관광지 섹션 ── -->
+      <section id="travel-section">
+        <div class="travel-header">
+          <div class="section-eyebrow" id="travel-source-badge">
+            관광지 추천 <span class="live-dot"></span> LIVE
+          </div>
+          <h2 class="travel-headline">
+            <span id="travel-city-name">이 지역</span>의 추천 관광지
+          </h2>
+          <div class="travel-meta">
+            <div class="weather-badge" id="travel-weather-badge"></div>
+            <p class="travel-subtitle" id="travel-subtitle"></p>
+          </div>
+        </div>
+
+        <div class="api-notice" id="api-notice" style="display: none">
+          <span>🇰🇷</span>
+          <span id="api-notice-text"
+            >한국관광공사 TourAPI v2 실시간 데이터</span
+          >
+          <span class="api-badge-count" id="api-result-count"></span>
+        </div>
+
+        <div class="filter-tabs" id="filter-tabs">
+          <button class="tab-btn active" data-filter="all">전체</button>
+          <button class="tab-btn" data-filter="12">관광지</button>
+          <button class="tab-btn" data-filter="14">문화시설</button>
+          <button class="tab-btn" data-filter="15">축제</button>
+          <button class="tab-btn" data-filter="28">레포츠</button>
+          <button class="tab-btn" data-filter="32">숙박</button>
+          <button class="tab-btn" data-filter="38">쇼핑</button>
+          <button class="tab-btn" data-filter="39">음식점</button>
+        </div>
+
+        <div class="sort-row">
+          <button class="sort-btn active" data-sort="distance">
+            📍 거리순
+          </button>
+          <button class="sort-btn" data-sort="weather">☀️ 날씨 추천</button>
+          <button class="sort-btn" data-sort="modified">🆕 최신</button>
+          <button class="btn-select-mode" id="select-mode-btn">
+            ☑ 다중 선택
+          </button>
+        </div>
+
+        <div class="grid-wrap" id="grid-wrap">
+          <div class="places-grid" id="places-grid"></div>
+          <div class="grid-loading-overlay" id="grid-loading-overlay">
+            <div class="grid-spinner">
+              <div class="sw-loader">
+                <div class="sw-orbit"><div class="sw-orb"></div></div>
+                <div class="sw-icon-wrap">
+                  <span class="sw-loader-icon">🌤</span>
+                </div>
+              </div>
+              <div class="spinner-label" id="spinner-label">불러오는 중...</div>
+              <div class="spinner-dots">
+                <span></span><span></span><span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pagination-wrap" id="pagination-wrap" style="display: none">
+          <button class="page-btn" id="page-prev">‹</button>
+          <div id="page-numbers"></div>
+          <button class="page-btn" id="page-next">›</button>
+        </div>
+
+        <div class="route-hint" id="route-hint">
+          <span
+            >관심 명소를 <strong>경로에 추가</strong>하고 최적 동선을
+            만들어보세요</span
+          >
+          <button
+            class="btn-outline"
+            onclick="
+              document
+                .getElementById('route-section')
+                .scrollIntoView({ behavior: 'smooth' })
+            "
+          >
+            경로 플래너 →
+          </button>
+        </div>
+      </section>
+
+      <!-- ── 경로 플래너 ── -->
+      <section id="route-section">
+        <div class="section-eyebrow">경로 플래너</div>
+        <h2
+          class="travel-headline"
+          style="font-size: 2.2rem; margin-bottom: 6px"
+        >
+          나만의 <span style="color: var(--accent)">여행 경로</span>
+        </h2>
+        <p class="travel-subtitle" style="margin-bottom: 28px">
+          날씨에 맞게 최적화된 동선을 자동 추천하거나 직접 구성하세요.
+        </p>
+
+        <div class="route-layout">
+          <div class="route-builder">
+            <div class="auto-route-panel">
+              <div class="panel-title">자동 경로 추천</div>
+              <div class="auto-route-btns">
+                <button class="auto-btn" data-type="weather">
+                  <span class="auto-btn-icon" id="weather-auto-icon">☀️</span>
+                  <span class="auto-btn-text">
+                    <span class="auto-btn-label">날씨 최적화 코스</span>
+                    <span class="auto-btn-sub">현재 날씨에 최적인 명소</span>
+                  </span>
+                </button>
+                <button class="auto-btn" data-type="culture">
+                  <span class="auto-btn-icon">🏛️</span>
+                  <span class="auto-btn-text">
+                    <span class="auto-btn-label">역사·문화 코스</span>
+                    <span class="auto-btn-sub">박물관·사원·역사지구</span>
+                  </span>
+                </button>
+                <button class="auto-btn" data-type="food">
+                  <span class="auto-btn-icon">🍜</span>
+                  <span class="auto-btn-text">
+                    <span class="auto-btn-label">미식 탐방 코스</span>
+                    <span class="auto-btn-sub">시장·맛집·음식점</span>
+                  </span>
+                </button>
+                <button class="auto-btn" data-type="efficient">
+                  <span class="auto-btn-icon">⚡</span>
+                  <span class="auto-btn-text">
+                    <span class="auto-btn-label">효율 동선 코스</span>
+                    <span class="auto-btn-sub">이동 최소화 최적 경로</span>
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <div class="route-stops-panel">
+              <div class="panel-title-row">
+                <div class="panel-title">
+                  내 경로 <span class="stop-count" id="stop-count">0개</span>
+                </div>
+                <div class="panel-actions">
+                  <div class="travel-mode-toggle">
+                    <button class="travel-mode-btn active" data-mode="driving">
+                      🚗 차량
+                    </button>
+                    <button class="travel-mode-btn" data-mode="walking">
+                      🚶 도보
+                    </button>
+                  </div>
+                  <button
+                    class="btn-sm btn-danger"
+                    id="clear-route-btn"
+                    style="display: none"
+                  >
+                    초기화
+                  </button>
+                  <button
+                    class="btn-sm btn-save"
+                    id="save-route-btn"
+                    style="display: none"
+                  >
+                    💾 저장
+                  </button>
+                  <button
+                    class="btn-sm btn-accent"
+                    id="share-route-btn"
+                    style="display: none"
+                  >
+                    🔗 공유
+                  </button>
+                </div>
+              </div>
+
+              <div id="route-stops-list" class="route-stops-list">
+                <div class="route-empty" id="route-empty">
+                  <div class="route-empty-icon">🗺️</div>
+                  <div>아직 추가된 명소가 없어요</div>
+                  <div
+                    style="
+                      font-size: 0.78rem;
+                      color: var(--text-muted);
+                      margin-top: 6px;
+                    "
+                  >
+                    자동 추천 또는 카드의 "+ 경로 추가" 버튼으로 시작하세요
+                  </div>
+                </div>
+              </div>
+
+              <div class="depart-row" id="depart-row" style="display: none">
+                <label class="depart-label" for="depart-time-input"
+                  >⏰ 출발 시간</label
+                >
+                <input
+                  type="time"
+                  id="depart-time-input"
+                  class="depart-input"
+                />
+                <span class="depart-hint">입력하면 일정 타임라인 표시</span>
+              </div>
+
+              <div
+                class="route-summary"
+                id="route-summary"
+                style="display: none"
+              >
+                <div class="summary-item">
+                  <span class="summary-label">총 명소</span>
+                  <span class="summary-value" id="summary-count">0곳</span>
+                </div>
+                <div class="summary-item summary-mode-drive">
+                  <span class="summary-label">🚗 차량</span>
+                  <span class="summary-value" id="summary-time-drive">—</span>
+                </div>
+                <div class="summary-item summary-mode-walk">
+                  <span class="summary-label">🚶 도보</span>
+                  <span class="summary-value" id="summary-time-walk">—</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="route-map-panel">
+            <div class="map-toolbar">
+              <div class="panel-title">지도 & 경로</div>
+            </div>
+            <div
+              id="route-map-leaflet"
+              style="
+                height: 400px;
+                border-radius: 12px;
+                z-index: 0;
+                overflow: hidden;
+              "
+            ></div>
+            <div class="map-pins-bar" id="route-map-pins"></div>
+            <div class="route-legend" id="route-legend" style="display: none">
+              <div class="legend-title">경로 순서</div>
+              <div class="legend-items" id="legend-items"></div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="route-timeline-section"
+          id="route-timeline-section"
+          style="display: none"
+        >
+          <div class="panel-title" style="margin-bottom: 16px">
+            ⏱ 예상 일정 타임라인
+          </div>
+          <div class="route-timeline" id="route-timeline"></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- 플로팅 선택 바 -->
+    <div class="selection-bar hidden" id="selection-bar">
+      <div class="selection-bar-inner">
+        <div class="selection-info">
+          <span>✅</span>
+          <span id="selection-count-text">0개 선택됨</span>
+        </div>
+        <div class="selection-actions">
+          <button class="btn-sel-cancel" id="sel-cancel-btn">취소</button>
+          <button class="btn-sel-add" id="sel-add-btn">경로에 추가 →</button>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <span
+        >Powered by
+        <a href="https://openweathermap.org" target="_blank">OpenWeatherMap</a>
+        +
+        <a href="https://www.data.go.kr" target="_blank"
+          >한국관광공사 TourAPI</a
+        >
+        + OpenStreetMap</span
+      >
+      <span>SKYWATCHER v8</span>
+    </footer>
+
+    <!-- 내 경로 모달 -->
+    <div class="modal-overlay hidden" id="my-routes-modal">
+      <div class="modal-box" style="max-width: 600px">
+        <div class="modal-body">
+          <div
+            style="
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              margin-bottom: 18px;
+            "
+          >
+            <div>
+              <div class="modal-category">내 저장 경로</div>
+              <div class="modal-title" style="font-size: 1.2rem">
+                저장된 여행 루트
+              </div>
+            </div>
+            <button
+              class="modal-close-x"
+              id="my-routes-close"
+              style="position: static"
+            >
+              ✕
+            </button>
+          </div>
+          <div id="my-routes-list" style="min-height: 80px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 공유 경로 toast -->
+    <div class="share-toast hidden" id="share-toast">
+      <div class="share-toast-inner">
+        <span id="share-toast-msg">링크가 복사됐습니다</span>
+        <button id="share-toast-close">✕</button>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
