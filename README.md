@@ -315,6 +315,7 @@ function estimateMinutes(stops, i, profile) {
 골목길: 느림 (10~30km/h)
 신호/회전/도로 유형 반영
 
+<br>
 
 🚶 도보 (walking) : 약 4 ~ 5 km/h
 
