@@ -3,7 +3,7 @@
 > **실시간 날씨 분석 기반 국내 여행지 추천 및 경로 최적화 서비스**
 
 **Live Demo** → [sky-watcher-kappa.vercel.app](https://sky-watcher-kappa.vercel.app)
-
+https://docs.google.com/document/d/1fhKjlkvA5_nkpFFOs_w9eZvRrFKbjiX7/edit?pli=1
 <br>
 
 ---
