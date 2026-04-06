@@ -306,7 +306,7 @@ function estimateMinutes(stops, i, profile) {
 }
 ```
 
-
+<br>
  🚗 차량 (driving) : “도로 종류별 평균 속도 + 실제 도로망 기반 계산”
 
 
@@ -322,6 +322,8 @@ function estimateMinutes(stops, i, profile) {
 보행 가능한 길만 사용
 계단, 골목, 지름길 포함
 
+<br>
+
 ### 날씨 + 관광지 병렬 페치
 
 ```js
@@ -332,7 +334,7 @@ const [wData, places] = await Promise.all([
 ]);
 ```
 
-### 현재 진행 중인 축제만 필터링
+### 현재 진행 중인 축제만 필터링 
 
 ```js
 // 서버: 90일 전부터 조회 (진행 중 행사 포함)
@@ -399,7 +401,7 @@ function showLoading(msg) {
 
 ---
 
-### 문제 3. 축제 탭에 종료된 행사 노출 / 현재 행사가 안 뜸
+### 문제 3. 축제 탭에 종료된 행사 노출 / 현재 행사가 안 뜸  (현재는 제외 상태 - 데이터 상 날짜 : UNDEFIND)
 
 **원인** — 서버에서 `eventStartDate=오늘`로 TourAPI를 호출하면 API 스펙상 "오늘 시작하는 행사"부터 반환합니다. 이미 3주 전부터 진행 중인 축제는 포함되지 않았습니다.
 
@@ -493,10 +495,11 @@ const data = await $.ajax({
   dataType: "json",
 });
 ```
+ 
+### 4. Firebase Config 키 분리 -> 키 노출 + 보안처리
 
-### 4. Firebase Config 키 분리
-
-`firebase.config.js`를 `.gitignore`에 추가해 실제 키가 Git 히스토리에 남지 않도록 구조화하고, `firebase.config.example.js`를 템플릿으로 제공합니다.
+Firebase는 클라이언트 기반 서비스 특성을 고려해 설정 정보를 코드에 포함하되, 
+도메인 제한과 보안 규칙(Security Rules)을 적용하여 안전한 접근 제어를 구현했습니다.
 
 <br>
 
